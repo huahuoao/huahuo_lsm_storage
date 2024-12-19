@@ -7,4 +7,5 @@ import (
 
 func main() {
 	fmt.Println(utils.GetDatabaseSourcePath())
+	fmt.Println("hello world1")
 }
