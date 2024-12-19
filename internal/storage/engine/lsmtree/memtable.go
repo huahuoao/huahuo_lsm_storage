@@ -10,6 +10,7 @@ type memTable struct {
 	data *rbytree.Tree
 	// 插入到MemTable中的所有键和值的总大小，单位为字节（b在这里应该就是指字节）。
 	b int
+	n int //键值对数量
 }
 
 // newMemTable函数用于返回一个MemTable的新实例。
@@ -27,6 +28,7 @@ func (mt *memTable) put(key, value []byte) error {
 	} else {
 		// 如果键不存在，将键和新值的长度累加到总大小中。
 		mt.b += len(key) + len(value)
+		mt.n++
 	}
 
 	return nil
@@ -47,6 +49,7 @@ func (mt *memTable) delete(key []byte) error {
 	} else {
 		// 如果键原本存在，减去对应值的长度，以更新总大小。
 		mt.b -= len(value)
+		mt.n--
 	}
 
 	return nil

@@ -60,9 +60,12 @@ type LSMTree struct {
 	diskTableNum int
 
 	// 所有已刷新到 WAL 但未刷新到已排序文件中的更改
-	// 存储在内存中以便于更快的查找。
+	// 可读写的内存表
 	memTable *memTable
-
+	//不可读内存表
+	immutableMemtables []*memTable
+	//不可读内存表的数量最大限制
+	immutableMemtableMaxNum int
 	// 如果 MemTable 的大小（以字节为单位）超过阈值，
 	// 必须将其刷新到文件系统。
 	memTableThreshold int
@@ -140,6 +143,9 @@ func Open(dbDir string, options ...func(*LSMTree)) (*LSMTree, error) {
 
 	return t, nil
 }
+func (t *LSMTree) refreshMemTable() {
+	t.memTable = newMemTable()
+}
 
 // Close 关闭所有分配的资源。
 func (t *LSMTree) Close() error {
@@ -169,11 +175,14 @@ func (t *LSMTree) Put(key []byte, value []byte) error {
 	t.memTable.put(key, value)
 
 	if t.memTable.bytes() >= t.memTableThreshold {
-		if err := t.flushMemTable(); err != nil {
-			return fmt.Errorf("failed to flush MemTable: %w", err)
-		}
-	}
+		// 当前 Memtable 已经达到了设定的大小阈值
+		// 将当前的 Memtable 转为只读并添加到 immutableMemtables
+		t.immutableMemtables = append(t.immutableMemtables, t.memTable)
+		// 创建一个新的 Memtable 来继续接收写入
+		t.refreshMemTable()
 
+		// 可能会触发后台的 Compaction 操作来处理不可读 Memtable
+	}
 	if t.diskTableNum >= t.diskTableNumThreshold {
 		oldest := t.maxDiskTableIndex - t.diskTableNum + 1
 		if err := mergeDiskTables(t.dbDir, oldest, oldest+1, t.sparseKeyDistance); err != nil {
@@ -197,13 +206,26 @@ func (t *LSMTree) Get(key []byte) ([]byte, bool, error) {
 	if exists {
 		return value, value != nil, nil
 	}
-
-	value, exists, err := searchInDiskTables(t.dbDir, t.maxDiskTableIndex, key)
+	value, exists, err := t.SearchInImmutableMemtable(key)
+	if exists {
+		return value, value != nil, nil
+	}
+	value, exists, err = searchInDiskTables(t.dbDir, t.maxDiskTableIndex, key)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to search in DiskTables: %w", err)
 	}
 
 	return value, exists, nil
+}
+func (t *LSMTree) SearchInImmutableMemtable(key []byte) ([]byte, bool, error) {
+	tables := t.immutableMemtables
+	for _, table := range tables {
+		value, exists := table.get(key)
+		if exists {
+			return value, value != nil, nil
+		}
+	}
+	return nil, false, nil
 }
 
 // Delete 根据键从数据库中删除值。
@@ -243,4 +265,20 @@ func (t *LSMTree) flushMemTable() error {
 	t.maxDiskTableIndex = newDiskTableIndex
 
 	return nil
+}
+
+// PrintStatus 打印当前树的状态，包括 memTable 和 immutableMemtables 的信息。
+func (t *LSMTree) PrintStatus() {
+	fmt.Printf("MemTable: n=%d, b=%dkb\n", t.memTable.n, t.memTable.b/1024)
+	// 打印不可读内存表的状态
+	totalImmutableSize := 0
+	totalImmutableCount := 0
+	for i, immutableTable := range t.immutableMemtables {
+		immutableSize := immutableTable.b  // 获取不可读内存表的字节数
+		immutableCount := immutableTable.n // 获取不可读内存表的 KV 数量
+		totalImmutableSize += immutableSize
+		totalImmutableCount += immutableCount
+		fmt.Printf("immutableTable %d n:%d, b:%d kb:\n", i, immutableCount, immutableSize/1024)
+
+	}
 }
