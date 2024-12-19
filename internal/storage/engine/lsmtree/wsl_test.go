@@ -1,6 +1,8 @@
 package lsmtree
 
 import (
+	"fmt"
+	"github.com/huahuoao/lsm-core/internal/utils"
 	"os"
 	"path"
 	"testing"
@@ -116,7 +118,35 @@ func TestLoadMemTable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("加载空内存表失败: %v", err)
 	}
-	if memTable != nil {
-		t.Fatal("加载空内存表应该返回nil")
+	if memTable.data.Size() != 0 {
+		t.Fatalf("加载空内存表应该返回nil %+v", memTable)
 	}
+}
+
+// 测试创建文件并且写入 并且读取文件内容
+func TestCreateAndRead(t *testing.T) {
+	walPath := utils.GetDatabaseSourcePath()
+	_ = os.MkdirAll(walPath, 0700)
+	walFile, err := os.OpenFile(path.Join(walPath, "wal.log"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		t.Fatalf("创建WAL文件失败: %v", err)
+	}
+	defer walFile.Close()
+	if err := appendToWAL(walFile, []byte("key1"), []byte("value1")); err != nil {
+		t.Fatalf("追加条目失败: %v", err)
+	}
+	if err := appendToWAL(walFile, []byte("key2"), []byte("value2")); err != nil {
+		t.Fatalf("追加条目失败: %v", err)
+	}
+
+	// 测试加载内存表
+	memTable, err := loadMemTable(walFile)
+	if err != nil {
+		t.Fatalf("加载内存表失败: %v", err)
+	}
+	if memTable == nil {
+		t.Fatal("返回的内存表为nil")
+	}
+	value, _ := memTable.get([]byte("key1"))
+	fmt.Println(string(value))
 }

@@ -1,68 +1,58 @@
 package lsmtree
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
-
-	"github.com/bytedance/sonic"
 )
 
-// encode 函数对键和值进行编码，并将其写入指定的写入器。
-// 返回写入的字节数以及可能发生的错误。
-// 该函数必须与 decode 兼容：encode(decode(v)) == v。
+// encode 对键和值进行编码，并将其写入指定的写入器。
+// 返回写入的字节数和发生的错误。
+// 此函数必须与 decode 兼容：encode(decode(v)) == v。
 func encode(key []byte, value []byte, w io.Writer) (int, error) {
-	// encoding format:
-	// [encoded total length in bytes][encoded key length in bytes][key][value]
+	// 编码格式：
+	// [编码的总长度（字节）][编码的键长度（字节）][键][值]
 
-	// 计算总长度
-	keyLen := len(key)
-	valueLen := len(value)
-	totalLen := 8 + 8 + keyLen + valueLen // 总长度：encodedLen + keyLen + key + value
+	// 已写入的字节数
+	bytes := 0
 
-	// 序列化数据
-	encodedLen := encodeInt(totalLen)
-	keyLenBytes := encodeInt(keyLen)
+	keyLen := encodeInt(len(key))
+	len := len(keyLen) + len(key) + len(value)
+	encodedLen := encodeInt(len)
 
-	// 写入数据到 w
-	bytesWritten := 0
-
-	// 写入总长度
 	if n, err := w.Write(encodedLen); err != nil {
 		return n, err
 	} else {
-		bytesWritten += n
+		bytes += n
 	}
 
-	// 写入 key 长度
-	if n, err := w.Write(keyLenBytes); err != nil {
-		return bytesWritten + n, err
+	if n, err := w.Write(keyLen); err != nil {
+		return bytes + n, err
 	} else {
-		bytesWritten += n
+		bytes += n
 	}
 
-	// 写入 key
 	if n, err := w.Write(key); err != nil {
-		return bytesWritten + n, err
+		return bytes + n, err
 	} else {
-		bytesWritten += n
+		bytes += n
 	}
 
-	// 写入 value
 	if n, err := w.Write(value); err != nil {
-		return bytesWritten + n, err
+		return bytes + n, err
 	} else {
-		bytesWritten += n
+		bytes += n
 	}
 
-	return bytesWritten, nil
+	return bytes, nil
 }
 
-// decode 函数通过从指定的读取器读取来解码键和值。
-// 返回读取的字节数以及可能发生的错误。
-// 该函数必须与 encode 兼容：encode(decode(v)) == v。
+// decode 从指定的读取器中解码键和值。
+// 返回读取的字节数和发生的错误。
+// 此函数必须与 encode 兼容：encode(decode(v)) == v。
 func decode(r io.Reader) ([]byte, []byte, error) {
-	// encoding format:
-	// [encoded total length in bytes][encoded key length in bytes][key][value]
+	// 编码格式：
+	// [编码的总长度（字节）][编码的键长度（字节）][键][值]
 
 	var encodedEntryLen [8]byte
 	if _, err := r.Read(encodedEntryLen[:]); err != nil {
@@ -94,45 +84,39 @@ func decode(r io.Reader) ([]byte, []byte, error) {
 	return key, value, err
 }
 
-// encodeKeyOffset encodes key offset and writes it to the given writer.
+// encodeKeyOffset 编码键偏移量并将其写入给定的写入器。
 func encodeKeyOffset(key []byte, offset int, w io.Writer) (int, error) {
 	return encode(key, encodeInt(offset), w)
 }
 
-// encodeInt encodes the int as a slice of bytes.
-// Must be compatible with decodeInt.
+// encodeInt 将整数编码为字节切片。
+// 必须与 decodeInt 兼容。
 func encodeInt(x int) []byte {
-	// 采用 sonics 来进行编码，将整数转换成字节
-	encoded, _ := sonic.Marshal(x)
-	return encoded
+	var encoded [8]byte
+	binary.BigEndian.PutUint64(encoded[:], uint64(x))
+
+	return encoded[:]
 }
 
-// decodeInt decodes the slice of bytes as an int.
-// Must be compatible with encodeInt.
+// decodeInt 将字节切片解码为整数。
+// 必须与 encodeInt 兼容。
 func decodeInt(encoded []byte) int {
-	// 使用 sonics 解码，返回一个整数
-	var result int
-	err := sonic.Unmarshal(encoded, &result)
-	if err != nil {
-		panic(fmt.Sprintf("decodeInt failed: %v", err))
-	}
-	return result
+	return int(binary.BigEndian.Uint64(encoded))
 }
 
-// encodeIntPair encodes two ints.
+// encodeIntPair 编码两个整数。
 func encodeIntPair(x, y int) []byte {
-	// 使用 Sonic 来序列化两个整数
-	encoded, _ := sonic.Marshal([2]int{x, y})
-	return encoded
+	var encoded [16]byte
+	binary.BigEndian.PutUint64(encoded[0:8], uint64(x))
+	binary.BigEndian.PutUint64(encoded[8:], uint64(y))
+
+	return encoded[:]
 }
 
-// decodeIntPair decodes two ints.
+// decodeIntPair 解码两个整数。
 func decodeIntPair(encoded []byte) (int, int) {
-	// 使用 Sonic 解码两个整数
-	var result [2]int
-	err := sonic.Unmarshal(encoded, &result)
-	if err != nil {
-		panic(fmt.Sprintf("decodeIntPair failed: %v", err))
-	}
-	return result[0], result[1]
+	x := int(binary.BigEndian.Uint64(encoded[0:8]))
+	y := int(binary.BigEndian.Uint64(encoded[8:]))
+
+	return x, y
 }

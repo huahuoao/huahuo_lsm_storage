@@ -1,7 +1,10 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/huahuoao/lsm-core/internal/utils"
+)
 
 func main() {
-	fmt.Println("Hello, World!")
+	fmt.Println(utils.GetDatabaseSourcePath())
 }

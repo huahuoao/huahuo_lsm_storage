@@ -9,15 +9,15 @@ import (
 	"strconv"
 )
 
-// DiskTableNumFileName是包含最大磁盘表编号的磁盘表文件名。
 const (
+	// DiskTableNumFileName是包含最大磁盘表编号的磁盘表文件名。
 	diskTableNumFileName = "maxdisktable"
 	// DiskTableDataFileName是包含原始数据的磁盘表数据文件名。
-	diskTableDataFileName = "data.db"
+	diskTableDataFileName = "data"
 	// DiskTableIndexFileName是包含键以及指向数据文件中值的位置信息的磁盘表键文件名。
-	diskTableIndexFileName = "index.db"
+	diskTableIndexFileName = "index"
 	// DiskTableSparseIndexFileName是磁盘表的稀疏索引文件名，它是索引文件中每64个条目的一个采样。
-	diskTableSparseIndexFileName = "sparse.db"
+	diskTableSparseIndexFileName = "sparse"
 	// newDiskTableFlag是用于创建新磁盘表文件（数据、索引和稀疏索引文件）时打开文件的标志。
 	newDiskTableFlag = os.O_WRONLY | os.O_CREATE | os.O_TRUNC | os.O_APPEND
 )
