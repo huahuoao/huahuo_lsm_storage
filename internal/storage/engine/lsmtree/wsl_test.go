@@ -118,7 +118,7 @@ func TestLoadMemTable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("加载空内存表失败: %v", err)
 	}
-	if memTable.data.Size() != 0 {
+	if memTable.data.size != 0 {
 		t.Fatalf("加载空内存表应该返回nil %+v", memTable)
 	}
 }

@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"math/rand"
 	"testing"
 	"time"
@@ -17,17 +18,31 @@ func RandStringBytesGenerate(n int) string {
 	return result
 }
 func TestStorage(t *testing.T) {
+	count := 8000
+	keys := make([][]byte, count)
+	values := make([][]byte, count)
 	h, err := NewHbaseClient()
 	if err != nil {
 		t.Fatal(err)
 	}
 	start := time.Now() // 记录开始时间
-	count := 500
 	for i := 0; i < count; i++ {
-		h.Put([]byte("key"+string(rune(i))), []byte(RandStringBytesGenerate(1024)))
+		v := RandStringBytesGenerate(1024)
+		h.Put([]byte("key"+string(rune(i))), []byte(v))
+		keys[i] = []byte("key" + string(rune(i)))
+		values[i] = []byte(v)
 	}
 	elapsed := time.Since(start) // 计算执行时间
 	t.Logf("存储 %d 个键值对耗时: %s", count, elapsed)
-
+	// 验证存储的键值对
+	for i := 0; i < count; i++ {
+		val, exist := h.Get(keys[i])
+		if !exist {
+			t.Errorf("获取键值对时出错: %v", err)
+		}
+		if !bytes.Equal(val, values[i]) {
+			t.Errorf("键 %s 对应的值不匹配，期望 %v，实际 %v", keys[i], values[i], val)
+		}
+	}
 	h.tree.PrintStatus()
 }

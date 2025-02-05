@@ -10,7 +10,7 @@ import (
 )
 
 func Example() {
-	dbDir, err := ioutil.TempDir(os.TempDir(), "example")
+	dbDir, err := os.MkdirTemp(os.TempDir(), "example")
 	if err != nil {
 		panic(fmt.Errorf("failed to create %s: %w", dbDir, err))
 	}

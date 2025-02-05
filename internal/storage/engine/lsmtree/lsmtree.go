@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path"
+	"sync"
 )
 
 const (
@@ -21,7 +22,7 @@ const (
 	// WAL 文件名。
 	walFileName = "wal.db"
 	// 默认 MemTable 表阈值。
-	defaultMemTableThreshold = 64000 // 64 kB
+	defaultMemTableThreshold = 16000 // 16 kB
 	// 稀疏索引中键之间的默认距离。
 	defaultSparseKeyDistance = 128
 	// 默认 DiskTable 数量阈值。
@@ -76,6 +77,8 @@ type LSMTree struct {
 
 	// 稀疏索引中键之间的距离。
 	sparseKeyDistance int
+	// 不可变表的合并写入
+	mu sync.RWMutex
 }
 
 // MemTableThreshold 为 LSMTree 设置 memTableThreshold。
@@ -128,14 +131,15 @@ func Open(dbDir string, options ...func(*LSMTree)) (*LSMTree, error) {
 	}
 
 	t := &LSMTree{
-		wal:                   wal,
-		memTable:              memTable,
-		dbDir:                 dbDir,
-		maxDiskTableIndex:     maxDiskTableIndex,
-		memTableThreshold:     defaultMemTableThreshold,
-		sparseKeyDistance:     defaultSparseKeyDistance,
-		diskTableNum:          diskTableNum,
-		diskTableNumThreshold: defaultDiskTableNumThreshold,
+		wal:                     wal,
+		memTable:                memTable,
+		dbDir:                   dbDir,
+		maxDiskTableIndex:       maxDiskTableIndex,
+		memTableThreshold:       defaultMemTableThreshold,
+		sparseKeyDistance:       defaultSparseKeyDistance,
+		diskTableNum:            diskTableNum,
+		diskTableNumThreshold:   defaultDiskTableNumThreshold,
+		immutableMemtableMaxNum: 4,
 	}
 	for _, option := range options {
 		option(t)
@@ -180,8 +184,13 @@ func (t *LSMTree) Put(key []byte, value []byte) error {
 		t.immutableMemtables = append(t.immutableMemtables, t.memTable)
 		// 创建一个新的 Memtable 来继续接收写入
 		t.refreshMemTable()
-
-		// 可能会触发后台的 Compaction 操作来处理不可读 Memtable
+	}
+	//不可变内存表数量超过限制的时候进行合并，写入磁盘
+	if len(t.immutableMemtables) >= t.immutableMemtableMaxNum {
+		err := t.compactImmutableMemtable()
+		if err != nil {
+			return err
+		}
 	}
 	if t.diskTableNum >= t.diskTableNumThreshold {
 		oldest := t.maxDiskTableIndex - t.diskTableNum + 1
@@ -197,6 +206,25 @@ func (t *LSMTree) Put(key []byte, value []byte) error {
 		t.diskTableNum--
 	}
 
+	return nil
+}
+func (t *LSMTree) compactImmutableMemtable() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	merged := NewSkipList(16)
+	for _, list := range t.immutableMemtables {
+		l := list.data
+		current := l.head.next[0]
+		for current != nil {
+			merged.Insert(current.key, current.value)
+			current = current.next[0]
+		}
+	}
+	err := t.flushMemTable(&memTable{data: merged})
+	if err != nil {
+		return err
+	}
+	t.immutableMemtables = []*memTable{}
 	return nil
 }
 
@@ -242,11 +270,11 @@ func (t *LSMTree) Delete(key []byte) error {
 // flushMemTable 将当前的 MemTable 刷新到磁盘并清除它。
 // 该函数期望在同步块中运行，
 // 因此它不使用任何同步机制。
-func (t *LSMTree) flushMemTable() error {
+func (t *LSMTree) flushMemTable(table *memTable) error {
 	newDiskTableNum := t.diskTableNum + 1
 	newDiskTableIndex := t.maxDiskTableIndex + 1
 
-	if err := createDiskTable(t.memTable, t.dbDir, newDiskTableIndex, t.sparseKeyDistance); err != nil {
+	if err := createDiskTable(table, t.dbDir, newDiskTableIndex, t.sparseKeyDistance); err != nil {
 		return fmt.Errorf("failed to create disk table %d: %w", newDiskTableIndex, err)
 	}
 
@@ -260,7 +288,6 @@ func (t *LSMTree) flushMemTable() error {
 	}
 
 	t.wal = newWAL
-	t.memTable.clear()
 	t.diskTableNum = newDiskTableNum
 	t.maxDiskTableIndex = newDiskTableIndex
 
@@ -269,13 +296,13 @@ func (t *LSMTree) flushMemTable() error {
 
 // PrintStatus 打印当前树的状态，包括 memTable 和 immutableMemtables 的信息。
 func (t *LSMTree) PrintStatus() {
-	fmt.Printf("MemTable: n=%d, b=%dkb\n", t.memTable.n, t.memTable.b/1024)
+	fmt.Printf("MemTable: n:%d, b:%d kb:\n", t.memTable.data.num, t.memTable.bytes()/1024)
 	// 打印不可读内存表的状态
 	totalImmutableSize := 0
 	totalImmutableCount := 0
 	for i, immutableTable := range t.immutableMemtables {
-		immutableSize := immutableTable.b  // 获取不可读内存表的字节数
-		immutableCount := immutableTable.n // 获取不可读内存表的 KV 数量
+		immutableSize := immutableTable.bytes() // 获取不可读内存表的字节数
+		immutableCount := immutableTable.size() // 获取不可读内存表的 KV 数量
 		totalImmutableSize += immutableSize
 		totalImmutableCount += immutableCount
 		fmt.Printf("immutableTable %d n:%d, b:%d kb:\n", i, immutableCount, immutableSize/1024)
