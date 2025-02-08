@@ -3,8 +3,6 @@ package lsmtree
 import (
 	"errors"
 	"fmt"
-	"github.com/huahuoao/lsm-core/internal/utils"
-	"github.com/seiflotfy/cuckoofilter"
 	"math"
 	"os"
 	"path"
@@ -24,12 +22,6 @@ const (
 const (
 	// WAL 文件名。
 	walFileName = "wal.db"
-	// 默认 MemTable 表阈值。
-	defaultMemTableThreshold = 16000 // 16 kB
-	// 稀疏索引中键之间的默认距离。
-	defaultSparseKeyDistance = 128
-	// 默认 DiskTable 数量阈值。
-	defaultDiskTableNumThreshold = 3
 )
 
 var (
@@ -82,8 +74,6 @@ type LSMTree struct {
 	sparseKeyDistance int
 	// 不可变表的合并写入互斥锁
 	mu sync.RWMutex
-	// 布谷鸟过滤器
-	cuckooFilters map[int]*cuckoo.Filter
 }
 
 // MemTableThreshold 为 LSMTree 设置 memTableThreshold。
@@ -209,18 +199,17 @@ func (t *LSMTree) Put(key []byte, value []byte) error {
 			aPath := path.Join(t.dbDir, fmt.Sprintf("%d-%s", a, diskTableDataFileName))
 			bPath := path.Join(t.dbDir, fmt.Sprintf("%d-%s", b, diskTableDataFileName))
 
-			aSize, err := utils.GetFileSize(aPath)
+			aSize, err := GetFileSize(aPath)
 			if err != nil {
 				continue // 文件不存在，跳过
 			}
 
-			bSize, err := utils.GetFileSize(bPath)
+			bSize, err := GetFileSize(bPath)
 			if err != nil {
 				continue
 			}
 
-			// 检查总大小是否超过64MB
-			if aSize+bSize > 2*1024*1024 {
+			if aSize+bSize > defaultSSTableSize {
 				aPrefix := strconv.Itoa(a) + "-"
 				bPrefix := strconv.Itoa(b) + "-"
 				updateIndexMap[aPrefix] = bPrefix

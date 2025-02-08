@@ -2,7 +2,6 @@ package lsmtree
 
 import (
 	"fmt"
-	"github.com/huahuoao/lsm-core/internal/utils"
 	"os"
 	"path"
 	"testing"
@@ -125,7 +124,7 @@ func TestLoadMemTable(t *testing.T) {
 
 // 测试创建文件并且写入 并且读取文件内容
 func TestCreateAndRead(t *testing.T) {
-	walPath := utils.GetDatabaseSourcePath()
+	walPath := GetDatabaseSourcePath()
 	_ = os.MkdirAll(walPath, 0700)
 	walFile, err := os.OpenFile(path.Join(walPath, "wal.log"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {

@@ -2,7 +2,6 @@ package storage
 
 import (
 	"github.com/huahuoao/lsm-core/internal/storage/engine/lsmtree"
-	"github.com/huahuoao/lsm-core/internal/utils"
 	"os"
 )
 
@@ -20,7 +19,7 @@ func NewHbaseClient() (*Hbase, error) {
 }
 
 func (h *Hbase) initTree() error {
-	walPath := utils.GetDatabaseSourcePath()
+	walPath := lsmtree.GetDatabaseSourcePath()
 	_ = os.MkdirAll(walPath, 0700)
 	tree, err := lsmtree.Open(walPath)
 	if err != nil {
