@@ -3,9 +3,12 @@ package lsmtree
 import (
 	"errors"
 	"fmt"
+	"github.com/huahuoao/lsm-core/internal/utils"
+	"github.com/seiflotfy/cuckoofilter"
 	"math"
 	"os"
 	"path"
+	"strconv"
 	"sync"
 )
 
@@ -26,7 +29,7 @@ const (
 	// 稀疏索引中键之间的默认距离。
 	defaultSparseKeyDistance = 128
 	// 默认 DiskTable 数量阈值。
-	defaultDiskTableNumThreshold = 10
+	defaultDiskTableNumThreshold = 3
 )
 
 var (
@@ -77,8 +80,10 @@ type LSMTree struct {
 
 	// 稀疏索引中键之间的距离。
 	sparseKeyDistance int
-	// 不可变表的合并写入
+	// 不可变表的合并写入互斥锁
 	mu sync.RWMutex
+	// 布谷鸟过滤器
+	cuckooFilters map[int]*cuckoo.Filter
 }
 
 // MemTableThreshold 为 LSMTree 设置 memTableThreshold。
@@ -194,20 +199,63 @@ func (t *LSMTree) Put(key []byte, value []byte) error {
 	}
 	if t.diskTableNum >= t.diskTableNumThreshold {
 		oldest := t.maxDiskTableIndex - t.diskTableNum + 1
-		if err := mergeDiskTables(t.dbDir, oldest, oldest+1, t.sparseKeyDistance); err != nil {
-			return fmt.Errorf("failed to merge disk tables: %w", err)
+		merged := false
+		updateIndexMap := make(map[string]string)
+		// 遍历所有可能的相邻表对
+		for i := oldest; i < t.maxDiskTableIndex; i++ {
+			a := i
+			b := i + 1
+
+			aPath := path.Join(t.dbDir, fmt.Sprintf("%d-%s", a, diskTableDataFileName))
+			bPath := path.Join(t.dbDir, fmt.Sprintf("%d-%s", b, diskTableDataFileName))
+
+			aSize, err := utils.GetFileSize(aPath)
+			if err != nil {
+				continue // 文件不存在，跳过
+			}
+
+			bSize, err := utils.GetFileSize(bPath)
+			if err != nil {
+				continue
+			}
+
+			// 检查总大小是否超过64MB
+			if aSize+bSize > 2*1024*1024 {
+				aPrefix := strconv.Itoa(a) + "-"
+				bPrefix := strconv.Itoa(b) + "-"
+				updateIndexMap[aPrefix] = bPrefix
+				continue
+			}
+
+			// 合并表对
+			if err := mergeDiskTables(t.dbDir, a, b, t.sparseKeyDistance); err != nil {
+				return fmt.Errorf("failed to merge disk tables %d and %d: %w", a, b, err)
+			}
+
+			// 更新元数据
+			newDiskTableNum := t.diskTableNum - 1
+			if err := updateDiskTableMeta(t.dbDir, newDiskTableNum, t.maxDiskTableIndex); err != nil {
+				return fmt.Errorf("failed to update disk table meta: %w", err)
+			}
+			for aPrefix, bPrefix := range updateIndexMap {
+				err := renameDiskTable(t.dbDir, aPrefix, bPrefix)
+				if err != nil {
+					return err
+				}
+			}
+			t.diskTableNum = newDiskTableNum
+			merged = true
+			break
 		}
 
-		newDiskTableNum := t.diskTableNum - 1
-		if err := updateDiskTableMeta(t.dbDir, newDiskTableNum, t.maxDiskTableIndex); err != nil {
-			return fmt.Errorf("failed to update disk table meta: %w", err)
+		if !merged {
+			return fmt.Errorf("all adjacent disk table pairs exceed 64MB and cannot be merged")
 		}
-
-		t.diskTableNum--
 	}
 
 	return nil
 }
+
 func (t *LSMTree) compactImmutableMemtable() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()

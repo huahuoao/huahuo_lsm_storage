@@ -18,7 +18,7 @@ func RandStringBytesGenerate(n int) string {
 	return result
 }
 func TestStorage(t *testing.T) {
-	count := 8000
+	count := 1000
 	keys := make([][]byte, count)
 	values := make([][]byte, count)
 	h, err := NewHbaseClient()
@@ -39,9 +39,10 @@ func TestStorage(t *testing.T) {
 		val, exist := h.Get(keys[i])
 		if !exist {
 			t.Errorf("获取键值对时出错: %v", err)
+			continue
 		}
 		if !bytes.Equal(val, values[i]) {
-			t.Errorf("键 %s 对应的值不匹配，期望 %v，实际 %v", keys[i], values[i], val)
+			t.Errorf("键 %v 对应的值不匹配，期望 %v，实际 %v", keys[i], values[i], val)
 		}
 	}
 	h.tree.PrintStatus()

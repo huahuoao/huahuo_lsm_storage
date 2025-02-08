@@ -36,6 +36,7 @@ func createDiskTable(memTable *memTable, dbDir string, index, sparseKeyDistance 
 		if err := w.write(key, value); err != nil {
 			return fmt.Errorf("failed to write to disk table %d: %w", index, err)
 		}
+
 	}
 
 	if err := w.sync(); err != nil {
