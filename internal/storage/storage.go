@@ -12,10 +12,10 @@ type Hbase struct {
 }
 
 func GetClient() *Hbase {
-	if h == nil {
-		h, _ = NewHbaseClient()
-	}
 	return h
+}
+func InitClient() {
+	h, _ = NewHbaseClient()
 }
 func NewHbaseClient() (*Hbase, error) {
 	h := &Hbase{}
