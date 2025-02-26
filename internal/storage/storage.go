@@ -5,10 +5,18 @@ import (
 	"os"
 )
 
+var h *Hbase
+
 type Hbase struct {
 	tree *lsmtree.LSMTree
 }
 
+func GetClient() *Hbase {
+	if h == nil {
+		h, _ = NewHbaseClient()
+	}
+	return h
+}
 func NewHbaseClient() (*Hbase, error) {
 	h := &Hbase{}
 	err := h.initTree()
