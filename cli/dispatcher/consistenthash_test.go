@@ -1,4 +1,4 @@
-package consistenthash
+package dispatcher
 
 import (
 	"strconv"
@@ -20,7 +20,7 @@ func TestConsistentHash(t *testing.T) {
 
 	for i := 0; i < totalHits; i++ {
 		key := "key" + strconv.Itoa(i)
-		node := ring.Get(key)
+		node, _ := ring.Get(key)
 		hits[node]++
 	}
 	limit := 2.0

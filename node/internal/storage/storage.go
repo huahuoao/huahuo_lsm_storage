@@ -12,6 +12,9 @@ type Hbase struct {
 }
 
 func GetClient() *Hbase {
+	if h == nil {
+		InitClient()
+	}
 	return h
 }
 func InitClient() {

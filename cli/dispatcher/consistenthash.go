@@ -1,10 +1,28 @@
-package consistenthash
+package dispatcher
 
 import (
 	"crypto/md5"
+	"errors"
 	"sort"
 	"strconv"
+	"sync"
 )
+
+var (
+	instance *HashRing
+	once     sync.Once
+)
+
+// GetRing 返回全局唯一的哈希环单例（懒汉式线程安全）
+func GetRing() *HashRing {
+	once.Do(func() {
+		instance = &HashRing{
+			replicas: 160, // 默认160个虚拟节点
+			hashMap:  make(map[int64]string),
+		}
+	})
+	return instance
+}
 
 // computeMD5 computes the MD5 hash of the given string.
 func computeMD5(s string) [16]byte {
@@ -20,16 +38,16 @@ func hash(digest *[16]byte, h int) int64 {
 	return k
 }
 
-// Map represents the structure of a consistent hash ring.
-type Map struct {
+// HashRing represents the structure of a consistent hash ring.
+type HashRing struct {
 	replicas int              // Number of virtual nodes per physical node
 	keys     []int64          // Sorted hash values
 	hashMap  map[int64]string // Mapping from hash values to physical node names
 }
 
 // New creates a new hash ring.
-func New() *Map {
-	m := &Map{
+func New() *HashRing {
+	m := &HashRing{
 		replicas: 160, // Number of virtual nodes
 		hashMap:  make(map[int64]string),
 	}
@@ -37,7 +55,7 @@ func New() *Map {
 }
 
 // Add adds new physical nodes to the hash ring.
-func (m *Map) Add(keys ...string) {
+func (m *HashRing) Add(keys ...string) {
 	for _, key := range keys {
 		for i := 0; i < m.replicas; i++ {
 			virtualNodeKey := key + strconv.Itoa(i)
@@ -55,9 +73,12 @@ func (m *Map) Add(keys ...string) {
 }
 
 // Get retrieves the closest physical node for the given key.
-func (m *Map) Get(key string) string {
+func (m *HashRing) Get(key string) (string, error) {
 	if len(m.keys) == 0 {
-		return ""
+		return "", nil
+	}
+	if len(m.hashMap) == 0 {
+		return "", errors.New("no node available!")
 	}
 	digest := computeMD5(key)
 	hash := hash(&digest, 0)
@@ -67,5 +88,28 @@ func (m *Map) Get(key string) string {
 	if idx == len(m.keys) {
 		idx = 0
 	}
-	return m.hashMap[m.keys[idx]]
+	return m.hashMap[m.keys[idx]], nil
+}
+
+func (m *HashRing) Remove(node string) {
+	// 遍历哈希映射，移除与目标节点相关的所有虚拟节点
+	for hashValue, physicalNode := range m.hashMap {
+		if physicalNode == node {
+			delete(m.hashMap, hashValue)
+		}
+	}
+
+	// 重建 keys 列表
+	newKeys := make([]int64, 0, len(m.keys))
+	for _, key := range m.keys {
+		if m.hashMap[key] != node {
+			newKeys = append(newKeys, key)
+		}
+	}
+
+	// 更新 keys 列表并重新排序
+	m.keys = newKeys
+	sort.Slice(m.keys, func(i, j int) bool {
+		return m.keys[i] < m.keys[j]
+	})
 }

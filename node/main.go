@@ -1,18 +1,18 @@
 package main
 
 import (
+	"github.com/huahuoao/lsm-core/internal/etcd"
 	"github.com/huahuoao/lsm-core/internal/protocol"
 	"github.com/huahuoao/lsm-core/internal/storage"
 	"github.com/panjf2000/gnet/v2"
 	"github.com/panjf2000/gnet/v2/pkg/logging"
-	"sync"
+	"log"
 	"time"
 )
 
 var Hbase *storage.Hbase
 
-func NewTCPPool(wg *sync.WaitGroup) {
-	defer wg.Done()
+func NewTCPPool() {
 	ss := protocol.NewBluebellServer("tcp", "0.0.0.0:9000", true)
 	options := []gnet.Option{
 		gnet.WithMulticore(true),               // 启用多核模式
@@ -22,17 +22,21 @@ func NewTCPPool(wg *sync.WaitGroup) {
 		gnet.WithWriteBufferCap(2048 * 1024),
 	}
 	err := gnet.Run(ss, ss.Network+"://"+ss.Addr, options...)
-	logging.Infof("server exits with error: %v", err)
+	logging.Infof("node exits with error: %v", err)
 }
 
 func main() {
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go NewTCPPool(&wg)
+	go NewTCPPool()
 	var err error
 	Hbase, err = storage.NewHbaseClient()
 	if err != nil {
 		panic(err)
 	}
-	wg.Wait()
+	endpoints := []string{"localhost:2379"}
+	rc, err := etcd.NewRegistryClient(endpoints)
+	if err != nil {
+		log.Fatalf("Failed to create registry client: %v", err)
+	}
+	_ = rc.Register("123")
+	select {}
 }

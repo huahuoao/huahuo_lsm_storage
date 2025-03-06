@@ -1,18 +1,16 @@
-package protocol
+package client
 
 import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/panjf2000/gnet/v2"
 	"io"
-	"sync"
 
 	"github.com/bytedance/sonic"
 )
 
 // Bluebell 消息结构
-type BluebellRequest struct {
+type Bluebell struct {
 	Command string
 	Key     string // 键，通常是用于标识数据的字符串
 	Value   []byte // 值，存储数据的字节数组
@@ -35,27 +33,6 @@ func (b *BluebellResponse) Serialize() ([]byte, error) {
 
 	return buf.Bytes(), nil
 }
-func (b *BluebellResponse) Encode() ([]byte, error) {
-	// Serialize the message body
-	body, err := b.Serialize()
-	if err != nil {
-		return nil, err
-	}
-
-	// Create a buffer to hold the final encoded message
-	buf := new(bytes.Buffer)
-
-	// Write the length of the body as the first 4 bytes
-	bodyLength := uint32(len(body))
-	if err := binary.Write(buf, binary.BigEndian, bodyLength); err != nil {
-		return nil, err
-	}
-
-	// Write the serialized body
-	buf.Write(body)
-
-	return buf.Bytes(), nil
-}
 func DeserializeResponse(data []byte) (*BluebellResponse, error) {
 	buf := bytes.NewBuffer(data)
 
@@ -74,7 +51,7 @@ func DeserializeResponse(data []byte) (*BluebellResponse, error) {
 		Result: result,
 	}, nil
 }
-func (b *BluebellRequest) String() string {
+func (b *Bluebell) String() string {
 	return fmt.Sprintf("Bluebell{\n  Command: %s,\n  Key: %s,\n  Value: %s,\n  Group: %s\n}",
 		b.Command,
 		b.Key,
@@ -82,25 +59,9 @@ func (b *BluebellRequest) String() string {
 		b.Group,
 	)
 }
-func (b *BluebellRequest) Encode() ([]byte, error) {
-	// 1. 序列化 Bluebell 结构体
-	serializedData, err := b.Serialize()
-	if err != nil {
-		return nil, err
-	}
-	// 2. 计算总长度：头部长度（4 字节） + 实际序列化数据长度
-	totalLength := len(serializedData) + 4
-	// 3. 创建最终数据字节数组
-	finalData := make([]byte, totalLength)
-	// 4. 将总长度写入前4个字节
-	binary.BigEndian.PutUint32(finalData, uint32(len(serializedData)))
-	// 5. 将序列化数据复制到总长度后的部分
-	copy(finalData[4:], serializedData)
-	return finalData, nil
-}
 
 // 序列化：将 Bluebell 结构体序列化为二进制
-func (b *BluebellRequest) Serialize() ([]byte, error) {
+func (b *Bluebell) Serialize() ([]byte, error) {
 	buf := new(bytes.Buffer)
 
 	// Command 字段
@@ -124,42 +85,6 @@ func (b *BluebellRequest) Serialize() ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
-}
-
-// 反序列化：将二进制数据反序列化为 Bluebell 结构体
-func Deserialize(data []byte) (*BluebellRequest, error) {
-	buf := bytes.NewReader(data)
-	b := &BluebellRequest{}
-
-	// Command 字段
-	command, err := readString(buf)
-	if err != nil {
-		return nil, err
-	}
-	b.Command = command
-
-	// Key 字段
-	key, err := readString(buf)
-	if err != nil {
-		return nil, err
-	}
-	b.Key = key
-
-	// Value 字段
-	value, err := readBytes(buf)
-	if err != nil {
-		return nil, err
-	}
-	b.Value = value
-
-	// Group 字段
-	group, err := readString(buf)
-	if err != nil {
-		return nil, err
-	}
-	b.Group = group
-
-	return b, nil
 }
 
 // writeString 将字符串以长度+内容的形式写入到缓冲区
@@ -207,32 +132,21 @@ func readBytes(buf io.Reader) ([]byte, error) {
 	}
 	return byteBuf, nil
 }
-
-// BluebellServer 实现 gnet 的 Server
-type BluebellServer struct {
-	*gnet.BuiltinEventEngine
-	buffer       map[gnet.Conn]*bytes.Buffer // 用于存储半包数据
-	eng          gnet.Engine
-	Network      string
-	Addr         string
-	Multicore    bool
-	connected    int32
-	disconnected int32
-	inBufferPool *sync.Pool
-}
-
-// 创建新服务
-func NewBluebellServer(network, addr string, multicore bool) *BluebellServer {
-	return &BluebellServer{
-		buffer:    make(map[gnet.Conn]*bytes.Buffer),
-		Network:   network,
-		Addr:      addr,
-		Multicore: multicore,
-		inBufferPool: &sync.Pool{
-			New: func() interface{} {
-				return make([]byte, LIMIT_SIZE) // 预先创建缓冲区
-			},
-		}}
+func (b *Bluebell) Encode() ([]byte, error) {
+	// 1. 序列化 Bluebell 结构体
+	serializedData, err := b.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	// 2. 计算总长度：头部长度（4 字节） + 实际序列化数据长度
+	totalLength := len(serializedData) + 4
+	// 3. 创建最终数据字节数组
+	finalData := make([]byte, totalLength)
+	// 4. 将总长度写入前4个字节
+	binary.BigEndian.PutUint32(finalData, uint32(len(serializedData)))
+	// 5. 将序列化数据复制到总长度后的部分
+	copy(finalData[4:], serializedData)
+	return finalData, nil
 }
 
 func SonicSerialize(b interface{}) []byte {

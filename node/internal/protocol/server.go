@@ -11,7 +11,7 @@ import (
 )
 
 func (s *BluebellServer) OnBoot(eng gnet.Engine) (action gnet.Action) {
-	log.Printf("running server on %s with multi-core=%t",
+	log.Printf("running node on %s with multi-core=%t",
 		fmt.Sprintf("%s://%s", s.Network, s.Addr), s.Multicore)
 	s.eng = eng
 	return
@@ -73,9 +73,9 @@ func (s *BluebellServer) OnTraffic(c gnet.Conn) (action gnet.Action) {
 			log.Println("Read message error:", err)
 			return gnet.None
 		}
-
 		// Deserialize the message
 		bluebell, err := Deserialize(message)
+		fmt.Println(bluebell)
 		if err != nil {
 			log.Println("Failed to deserialize message:", err)
 			continue
@@ -84,9 +84,9 @@ func (s *BluebellServer) OnTraffic(c gnet.Conn) (action gnet.Action) {
 		// Process the message and generate a response
 		var res *BluebellResponse
 		switch bluebell.Command {
-		case "Get":
+		case "get":
 			res = HandleGet(bluebell)
-		case "Set":
+		case "set":
 			res = HandleSet(bluebell)
 		}
 
