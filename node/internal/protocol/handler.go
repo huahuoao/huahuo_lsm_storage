@@ -1,6 +1,9 @@
 package protocol
 
-import "github.com/huahuoao/lsm-core/internal/storage"
+import (
+	"fmt"
+	"github.com/huahuoao/lsm-core/internal/storage"
+)
 
 const (
 	SuccessCode = "0"
@@ -29,5 +32,6 @@ func HandleSet(request *BluebellRequest) *BluebellResponse {
 	if err != nil {
 		return newResponse(ErrorCode, []byte(err.Error()))
 	}
+	fmt.Println("set success")
 	return newResponse(SuccessCode, nil)
 }

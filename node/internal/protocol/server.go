@@ -75,7 +75,8 @@ func (s *BluebellServer) OnTraffic(c gnet.Conn) (action gnet.Action) {
 		}
 		// Deserialize the message
 		bluebell, err := Deserialize(message)
-		fmt.Println(bluebell)
+		fmt.Printf("req: %v\n", bluebell)
+
 		if err != nil {
 			log.Println("Failed to deserialize message:", err)
 			continue
@@ -89,9 +90,10 @@ func (s *BluebellServer) OnTraffic(c gnet.Conn) (action gnet.Action) {
 		case "set":
 			res = HandleSet(bluebell)
 		}
-
+		fmt.Printf("res1: %v\n", res)
 		// Serialize the response
 		resBytes, err := res.Encode()
+
 		if err != nil {
 			log.Println("Failed to serialize response:", err)
 			continue

@@ -19,6 +19,19 @@ var timerPool = sync.Pool{
 		return time.NewTimer(0) // 初始化定时器
 	},
 }
+var HuaHuoLsmCli *HuaHuoLsmClient
+
+type HuaHuoLsmClient struct {
+	Clients map[string]*Client
+	Ready   bool
+}
+
+func LsmCliInit() {
+	HuaHuoLsmCli = &HuaHuoLsmClient{
+		Clients: make(map[string]*Client),
+		Ready:   true,
+	}
+}
 
 type Client struct {
 	ServerAddr string
@@ -26,13 +39,19 @@ type Client struct {
 	Conn       net.Conn
 	ResponseCh chan []byte
 	Buffer     *bytebufferpool.ByteBuffer
+	Status     bool
 }
 
 func New(serverAddr string, serverPort int) *Client {
+	s := fmt.Sprintf("%s:%d", serverAddr, serverPort)
+	if HuaHuoLsmCli.Clients[s] != nil {
+		return HuaHuoLsmCli.Clients[s]
+	}
 	return &Client{
 		ServerAddr: serverAddr,
 		ServerPort: serverPort,
 		Buffer:     bytebufferpool.Get(),
+		Status:     true,
 	}
 }
 

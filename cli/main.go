@@ -1,13 +1,12 @@
 package main
 
 import (
-	"github.com/huahuoao/lsm-core/client/dispatcher"
-	"time"
+	"github.com/huahuoao/lsm-core/client/client"
 )
 
 func main() {
-	dispatcher.Init("localhost:2379")
-	time.Sleep(5 * time.Second)
+	client.DispatcherInit("localhost:2379")
+	client.LsmCliInit()
 
 	select {}
 }

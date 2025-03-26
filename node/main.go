@@ -37,6 +37,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create registry client: %v", err)
 	}
-	_ = rc.Register("123")
+	_ = rc.Register("localhost:9000")
 	select {}
 }

@@ -1,4 +1,4 @@
-package dispatcher
+package client
 
 import (
 	"crypto/md5"
@@ -45,8 +45,8 @@ type HashRing struct {
 	hashMap  map[int64]string // Mapping from hash values to physical node names
 }
 
-// New creates a new hash ring.
-func New() *HashRing {
+// NewRing creates a new hash ring.
+func NewRing() *HashRing {
 	m := &HashRing{
 		replicas: 160, // Number of virtual nodes
 		hashMap:  make(map[int64]string),

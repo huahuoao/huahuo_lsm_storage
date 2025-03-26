@@ -1,9 +1,11 @@
-package dispatcher
+package client
 
 import (
 	"context"
 	"fmt"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -60,6 +62,7 @@ func (rc *RegistryClient) QueryIPs() ([]string, error) {
 
 // WatchIPChanges 监听IP注册变化
 func (rc *RegistryClient) WatchIPChanges() {
+
 	watcher := clientv3.NewWatcher(rc.client)
 	watchChan := watcher.Watch(context.Background(), "/registry/ips/", clientv3.WithPrefix())
 
@@ -70,9 +73,16 @@ func (rc *RegistryClient) WatchIPChanges() {
 			case clientv3.EventTypePut:
 				fmt.Printf("[INFO] IP added: %s (Revision: %d)\n", ip, ev.Kv.CreateRevision)
 				GetRing().Add(ip)
+				parts := strings.Split(ip, ":")
+				addr := parts[0]
+				port, _ := strconv.Atoi(parts[1])
+				HuaHuoLsmCli.Clients[ip] = New(addr, port)
+				HuaHuoLsmCli.Clients[ip].Start()
+				HuaHuoLsmCli.Clients[ip].Status = true
 			case clientv3.EventTypeDelete:
 				fmt.Printf("[WARN] IP expired/deleted: %s (Revision: %d)\n", ip, ev.Kv.ModRevision)
 				GetRing().Remove(ip)
+				HuaHuoLsmCli.Clients[ip].Close()
 			}
 		}
 	}

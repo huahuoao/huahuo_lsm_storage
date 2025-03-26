@@ -5,14 +5,31 @@ import (
 	"time"
 )
 
-func (c *Client) SetString(key string, value string) error {
+func (hc *HuaHuoLsmClient) Set(key string, value []byte) error {
+	ip, err := GetRing().Get(key)
+	if err != nil {
+		return err
+	}
+	err = HuaHuoLsmCli.Clients[ip].set(key, value)
+	return err
+}
+
+func (hc *HuaHuoLsmClient) Get(key string) ([]byte, error) {
+	ip, err := GetRing().Get(key)
+	if err != nil {
+		return nil, err
+	}
+	value, err := HuaHuoLsmCli.Clients[ip].get(key)
+	return value, err
+}
+
+func (c *Client) set(key string, value []byte) error {
 	// Serialize key and value to calculate total size
-	b := []byte(value)
 
 	request := &Bluebell{
 		Command: SET_KEY,
 		Key:     key,
-		Value:   b,
+		Value:   value,
 	}
 
 	go c.sendRequestToServer(request)
@@ -21,12 +38,12 @@ func (c *Client) SetString(key string, value string) error {
 		return err
 	}
 	if res.Code != SUCCESS {
-		return errors.New(string(res.Result))
+		return errors.New(string("set failed"))
 	}
 	return nil
 }
 
-func (c *Client) GetString(key string) (string, error) {
+func (c *Client) get(key string) ([]byte, error) {
 	request := &Bluebell{
 		Command: GET_KEY,
 		Key:     key,
@@ -36,16 +53,16 @@ func (c *Client) GetString(key string) (string, error) {
 	go c.sendRequestToServer(request)
 	res, err := c.waitForResponseWithTimeout(5 * time.Second) // 等待响应，设置超时
 	if err != nil {
-		return "", err
+		return nil, err
+	}
+	if res.Code != SUCCESS {
+		return nil, errors.New(string(res.Result))
 	}
 
-	if res.Code != SUCCESS {
-		return "", errors.New(string(res.Result))
-	}
-	return string(res.Result), nil
+	return res.Result, nil
 }
 
-func (c *Client) Del(key string) error {
+func (c *Client) del(key string) error {
 	request := &Bluebell{
 		Command: DEL_KEY,
 		Key:     key,

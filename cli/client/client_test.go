@@ -2,11 +2,8 @@ package client
 
 import (
 	"fmt"
-	"sync"
-	"testing"
-	"time"
-
 	"math/rand"
+	"testing"
 )
 
 type MyStruct struct {
@@ -23,62 +20,17 @@ func randomString(n int) string {
 	}
 	return string(b)
 }
-func singleClient(wg *sync.WaitGroup) {
-	defer wg.Done()
-	c := New("localhost", 9000, "localhost:2379")
-	c.Start()
-	startTime := time.Now() // 记录开始时间
 
-	for i := 0; i < 100; i++ {
-		key := randomString(1024)
-		c.SetString(key, randomString(1024))
-		c.GetString(key)
-
+func Test1(t *testing.T) {
+	////这边有nil panic 待排查
+	LsmCliInit()
+	DispatcherInit("localhost:2379")
+	err := HuaHuoLsmCli.Set("测试key", []byte("测试value"))
+	value, err := HuaHuoLsmCli.Get("测试key")
+	if err != nil {
+		t.Error(err)
 	}
-	duration := time.Since(startTime) // 计算持续时间
-
-	fmt.Printf("singleClient took %v\n", duration) // 输出时长
-
+	fmt.Printf("get value: %v \n\n", string(value))
+	fmt.Println("测试结束")
+	select {}
 }
-
-// 测试并发
-func TestConcurrent(t *testing.T) {
-	startTime := time.Now() // 记录开始时间
-	var wg sync.WaitGroup
-	count := 1
-	wg.Add(count)
-	for i := 0; i < count; i++ {
-		go singleClient(&wg)
-	}
-	wg.Wait()
-	duration := time.Since(startTime)          // 计算持续时间
-	t.Logf("TestConcurrent took %v", duration) // 输出时长
-}
-
-// func Test(t *testing.T) {
-// 	c := New("localhost", 9000)
-// 	err := c.Start()
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-// 	c.NewGroup("huahuo", 128*MB)
-// 	c.BindGroup("huahuo")
-// 	random := randomString(1024)
-// 	c.SetString("test_string", random)
-// 	s, err := c.GetString("test_string")
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-// 	c.SetStruct("test", &MyStruct{Name: "huahuo", Age: 20})
-// 	var obj MyStruct
-// 	err = c.GetStruct("test", &obj)
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-// 	if s != random || obj.Name != "huahuo" || obj.Age != 20 {
-// 		t.Error("test failed")
-// 	}
-// 	c.Del("test_string")
-// 	c.NewGroup("huahuo1", 128*MB)
-// 	c.DelGroup("huahuo1")
-// }

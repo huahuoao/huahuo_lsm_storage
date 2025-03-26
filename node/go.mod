@@ -7,6 +7,7 @@ toolchain go1.24.0
 require (
 	github.com/bytedance/sonic v1.12.9
 	github.com/panjf2000/gnet/v2 v2.7.2
+	go.etcd.io/etcd/client/v3 v3.5.18
 )
 
 require (
@@ -22,7 +23,6 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.18 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.18 // indirect
-	go.etcd.io/etcd/client/v3 v3.5.18 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect

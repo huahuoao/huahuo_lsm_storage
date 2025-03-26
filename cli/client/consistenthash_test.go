@@ -1,4 +1,4 @@
-package dispatcher
+package client
 
 import (
 	"strconv"
@@ -6,7 +6,7 @@ import (
 )
 
 func TestConsistentHash(t *testing.T) {
-	ring := New()
+	ring := NewRing()
 	ring.Add("192.128.1.1:8080")
 	ring.Add("192.128.1.2:8080")
 	ring.Add("192.128.1.3:8080")

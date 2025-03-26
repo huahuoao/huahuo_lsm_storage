@@ -64,7 +64,6 @@ func (rc *RegistryClient) keepAlive(leaseID clientv3.LeaseID) {
 				log.Printf("Keep alive channel closed for lease %d", leaseID)
 				return
 			}
-			log.Printf("Lease %d renewed", leaseID)
 		}
 	}
 }

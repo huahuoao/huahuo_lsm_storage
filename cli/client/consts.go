@@ -13,7 +13,7 @@ const (
 	DEL_KEY = "del"
 )
 const (
-	SUCCESS = "200"
+	SUCCESS = "0"
 )
 const (
 	CONSISTENTHASH_VIRTUAL_NODE_NUM = 160
