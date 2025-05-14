@@ -60,6 +60,7 @@ func (rc *RegistryClient) keepAlive(leaseID clientv3.LeaseID) {
 	for {
 		select {
 		case _, ok := <-ch:
+			fmt.Println("[keep alive] " + time.Now().String())
 			if !ok {
 				log.Printf("Keep alive channel closed for lease %d", leaseID)
 				return

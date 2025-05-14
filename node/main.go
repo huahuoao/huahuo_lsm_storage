@@ -32,11 +32,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	endpoints := []string{"localhost:2379"}
+	endpoints := []string{"192.168.93.128:2379"}
 	rc, err := etcd.NewRegistryClient(endpoints)
 	if err != nil {
 		log.Fatalf("Failed to create registry client: %v", err)
 	}
-	_ = rc.Register("localhost:9000")
+	_ = rc.Register("192.168.93.128:9000")
 	select {}
 }
